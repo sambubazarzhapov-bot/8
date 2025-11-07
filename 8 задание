@@ -1,0 +1,241 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+// Класс для представления одной записи в расписании
+public class ScheduleEntry : IComparable<ScheduleEntry>
+{
+    public string DayOfWeek { get; set; }
+    public TimeSpan Time { get; set; }
+    public string Subject { get; set; }
+    public string Classroom { get; set; }
+
+    public ScheduleEntry(string dayOfWeek, TimeSpan time, string subject, string classroom)
+    {
+        DayOfWeek = dayOfWeek;
+        Time = time;
+        Subject = subject;
+        Classroom = classroom;
+    }
+
+    // Для сортировки по времени
+    public int CompareTo(ScheduleEntry other)
+    {
+        return Time.CompareTo(other.Time);
+    }
+
+    public override string ToString()
+    {
+        return $"{DayOfWeek,-10} {Time:hh\\:mm}     {Subject,-20} {Classroom}";
+    }
+}
+
+// Основной класс расписания
+public class ClassSchedule
+{
+    private List<ScheduleEntry> schedule;
+
+    public ClassSchedule()
+    {
+        schedule = new List<ScheduleEntry>();
+    }
+
+    // Загрузка расписания из файла
+    public void LoadFromFile(string filename)
+    {
+        try
+        {
+            schedule.Clear();
+            string[] lines = File.ReadAllLines(filename);
+            
+            foreach (string line in lines)
+            {
+                string[] parts = line.Split(';');
+                if (parts.Length == 4)
+                {
+                    string dayOfWeek = parts[0].Trim();
+                    TimeSpan time = TimeSpan.Parse(parts[1].Trim());
+                    string subject = parts[2].Trim();
+                    string classroom = parts[3].Trim();
+                    
+                    schedule.Add(new ScheduleEntry(dayOfWeek, time, subject, classroom));
+                }
+            }
+            
+            Console.WriteLine($"Расписание загружено из файла {filename}. Записей: {schedule.Count}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка при загрузке файла: {ex.Message}");
+        }
+    }
+
+    // Сохранение расписания в файл
+    public void SaveToFile(string filename)
+    {
+        try
+        {
+            using (StreamWriter writer = new StreamWriter(filename))
+            {
+                foreach (var entry in schedule)
+                {
+                    writer.WriteLine($"{entry.DayOfWeek};{entry.Time:hh\\:mm};{entry.Subject};{entry.Classroom}");
+                }
+            }
+            Console.WriteLine($"Расписание сохранено в файл {filename}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка при сохранении файла: {ex.Message}");
+        }
+    }
+
+    // Печать всего расписания
+    public void PrintFullSchedule()
+    {
+        if (schedule.Count == 0)
+        {
+            Console.WriteLine("Расписание пустое.");
+            return;
+        }
+
+        Console.WriteLine("\n=== ПОЛНОЕ РАСПИСАНИЕ ЗАНЯТИЙ ===");
+        Console.WriteLine("День недели  Время   Дисциплина           Аудитория");
+        Console.WriteLine("---------------------------------------------------");
+        
+        // Группировка по дням недели
+        var groupedByDay = schedule
+            .GroupBy(entry => entry.DayOfWeek)
+            .OrderBy(group => GetDayOrder(group.Key));
+
+        foreach (var dayGroup in groupedByDay)
+        {
+            var sortedEntries = dayGroup.OrderBy(entry => entry.Time);
+            foreach (var entry in sortedEntries)
+            {
+                Console.WriteLine(entry);
+            }
+            Console.WriteLine();
+        }
+    }
+
+    // Печать расписания на конкретный день
+    public void PrintDaySchedule(string dayOfWeek)
+    {
+        var dayEntries = schedule
+            .Where(entry => entry.DayOfWeek.Equals(dayOfWeek, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(entry => entry.Time)
+            .ToList();
+
+        if (dayEntries.Count == 0)
+        {
+            Console.WriteLine($"На {dayOfWeek} занятий нет.");
+            return;
+        }
+
+        Console.WriteLine($"\n=== РАСПИСАНИЕ НА {dayOfWeek.ToUpper()} ===");
+        Console.WriteLine("Время   Дисциплина           Аудитория");
+        Console.WriteLine("--------------------------------------");
+        
+        foreach (var entry in dayEntries)
+        {
+            Console.WriteLine($"{entry.Time:hh\\:mm}     {entry.Subject,-20} {entry.Classroom}");
+        }
+    }
+
+    // Добавление записи
+    public void AddEntry(string dayOfWeek, TimeSpan time, string subject, string classroom)
+    {
+        var newEntry = new ScheduleEntry(dayOfWeek, time, subject, classroom);
+        schedule.Add(newEntry);
+        Console.WriteLine($"Добавлено занятие: {newEntry}");
+    }
+
+    // Удаление записи
+    public bool RemoveEntry(string dayOfWeek, TimeSpan time, string subject)
+    {
+        var entryToRemove = schedule.FirstOrDefault(entry => 
+            entry.DayOfWeek.Equals(dayOfWeek, StringComparison.OrdinalIgnoreCase) &&
+            entry.Time == time &&
+            entry.Subject.Equals(subject, StringComparison.OrdinalIgnoreCase));
+
+        if (entryToRemove != null)
+        {
+            schedule.Remove(entryToRemove);
+            Console.WriteLine($"Удалено занятие: {entryToRemove}");
+            return true;
+        }
+        
+        Console.WriteLine("Занятие не найдено.");
+        return false;
+    }
+
+    // Вспомогательный метод для порядка дней недели
+    private int GetDayOrder(string day)
+    {
+        string[] daysOrder = { "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье" };
+        for (int i = 0; i < daysOrder.Length; i++)
+        {
+            if (daysOrder[i].Equals(day, StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+        return daysOrder.Length;
+    }
+
+    // Получение количества записей
+    public int GetEntryCount()
+    {
+        return schedule.Count;
+    }
+}
+
+// Демонстрационная программа
+class Program
+{
+    static void Main(string[] args)
+    {
+        ClassSchedule schedule = new ClassSchedule();
+        
+        Console.WriteLine("=== СИСТЕМА УПРАВЛЕНИЯ РАСПИСАНИЕМ ===\n");
+
+        // Создание тестового расписания
+        schedule.AddEntry("Понедельник", new TimeSpan(9, 0, 0), "Математика", "А-101");
+        schedule.AddEntry("Понедельник", new TimeSpan(11, 0, 0), "Физика", "Б-205");
+        schedule.AddEntry("Вторник", new TimeSpan(10, 0, 0), "Программирование", "К-301");
+        schedule.AddEntry("Среда", new TimeSpan(9, 0, 0), "Английский язык", "Л-102");
+        schedule.AddEntry("Понедельник", new TimeSpan(13, 0, 0), "Химия", "Л-201");
+
+        // Сохранение в файл
+        schedule.SaveToFile("schedule.txt");
+
+        // Печать полного расписания
+        schedule.PrintFullSchedule();
+
+        // Печать расписания на конкретный день
+        schedule.PrintDaySchedule("Понедельник");
+
+        // Добавление новой записи
+        Console.WriteLine("\n--- Добавление новой записи ---");
+        schedule.AddEntry("Пятница", new TimeSpan(14, 0, 0), "История", "А-105");
+
+        // Удаление записи
+        Console.WriteLine("\n--- Удаление записи ---");
+        schedule.RemoveEntry("Понедельник", new TimeSpan(11, 0, 0), "Физика");
+
+        // Печать обновленного расписания
+        Console.WriteLine("\n--- Обновленное расписание ---");
+        schedule.PrintFullSchedule();
+
+        // Создание нового объекта и загрузка из файла
+        Console.WriteLine("\n--- Загрузка из файла ---");
+        ClassSchedule loadedSchedule = new ClassSchedule();
+        loadedSchedule.LoadFromFile("schedule.txt");
+        loadedSchedule.PrintFullSchedule();
+
+        Console.WriteLine($"\nВсего записей в расписании: {loadedSchedule.GetEntryCount()}");
+
+        Console.WriteLine("\nНажмите любую клавишу для выхода...");
+        Console.ReadKey();
+    }
+}
